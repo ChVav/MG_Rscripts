@@ -3,16 +3,17 @@
 # Author: Charlotte Vavourakis
 # assumes individual reads were mapped with minimap2 to a combined set of contigs from different samples
 # assumes BBmap pileup.sh script was then run to extract coverage information from the .bam files (one for each read set)
-# This script parses such individual depth files in specified directory into depth files for each separate contig set as input for Metabat(2) 
+# to ensure correct order in the depth files, you need to generate a contiglist for each contigset (chop of the ">")
+# This script parses such individual depth files in specified directory into depth files for each separate contig set as input for Metabat(2)
 
 args = commandArgs(trailingOnly=TRUE)
 
 if (length(args)==0) {
-	print("No input directory specified, reading all bam.depth files in working directory")
-	dir.in = "."
+  print("No input directory specified, reading all bam.depth files in working directory")
+  dir.in = "./"
 } else if (length(args)==1){
   print("Output will be written to working directory.")
-	dir.in=args[1]
+  dir.in=args[1]
 }
 
 #----------------------
@@ -20,8 +21,9 @@ if (length(args)==0) {
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(tidyverse))
 
-#dir.in <- "."
+#dir.in <- "./"
 alignedList <- list.files(dir.in, pattern="depth")
+contigList <- list.files(dir.in,pattern="contiglist")
 headers <- scan(paste0(file.path(dir.in),alignedList[1]), what = "", nlines = 1, sep="\t")[-1]
 dat <- as.data.frame(matrix(nrow=0,ncol=13))
 colnames(dat) <- c("contigset", "contigname", headers, "readset")
@@ -47,9 +49,10 @@ for (i in 1:length(alignedList)){
 }
 colnames(dat) <- c("contigset", "contigname", headers, "readset")
 
-contigsetList <- dat %>% pull(contigset) %>% unique()
+contigsetList <- gsub(".contiglist","",contigList)
 
 for (i in 1:length(contigsetList)){
+  ordercontigs = read.table(paste0(file.path(dir.in),contigList[i])) %>% pull(V1)
   dat2 = dat %>%
     filter(contigset==contigsetList[i]) %>%
     select(contigname,Length,readset,Avg_fold,Std_Dev) %>%
@@ -57,7 +60,8 @@ for (i in 1:length(contigsetList)){
                 names_glue = "{readset}_{.value}",
                 values_from = c(Avg_fold,Std_Dev)) %>%
     mutate(totalAvgDepth = rowSums(select(., ends_with('Avg_fold')))) %>%
-    dplyr::rename(contigName=contigname,contigLen=Length)
+    dplyr::rename(contigName=contigname,contigLen=Length) %>%
+    arrange(match(contigName, ordercontigs))
   colnames(dat2) = gsub("Avg_fold","sorted.bam",colnames(dat2))
   colnames(dat2) = gsub("Std_Dev","sorted.bam-var",colnames(dat2))
   dat2 = dat2[,order(colnames(dat2))] %>%
@@ -69,7 +73,7 @@ for (i in 1:length(contigsetList)){
               row.names=FALSE,
               col.names=TRUE,
               file = output.file,
-              quote=FALSE, 
+              quote=FALSE,
               append=TRUE,
               sep="\t")
   close(output.file)
