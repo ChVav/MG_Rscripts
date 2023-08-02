@@ -22,7 +22,7 @@ suppressPackageStartupMessages(library(tidyverse))
 
 #dir.in <- "."
 alignedList <- list.files(dir.in, pattern="depth")
-headers <- scan(alignedList[1], what = "", nlines = 1, sep="\t")[-1]
+headers <- scan(paste0(file.path(dir.in),alignedList[1]), what = "", nlines = 1, sep="\t")[-1]
 dat <- as.data.frame(matrix(nrow=0,ncol=13))
 colnames(dat) <- c("contigset", "contigname", headers, "readset")
 dat[] <- sapply(dat, as.integer)
@@ -36,7 +36,7 @@ dat$Std_Dev <- as.numeric(dat$Std_Dev)
 dat$readset <- as.character(dat$readset)
 
 for (i in 1:length(alignedList)){
-  dat2 = read.table(alignedList[i]) %>%
+  dat2 = read.table(paste0(file.path(dir.in),alignedList[i])) %>%
     separate(V1,
              c("contigset", "contigname"),
              sep = "C",
